@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>William Scriber</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1410;
+    --paper: #f5f0e8;
+    --aged: #e8dfc8;
+    --accent: #8b2e0a;
+    --muted: #7a6e60;
+    --border: #c9b99a;
+    --success: #7aad6e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--ink);
+    font-family: 'Courier Prime', monospace;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    opacity:.3;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+  }
+
+  /* LOCK */
+  #lock-screen {
+    position:fixed; inset:0; background:var(--ink);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:100; transition: opacity .6s, transform .6s;
+  }
+  #lock-screen.fade-out { opacity:0; transform:translateY(-20px); pointer-events:none; }
+
+  .lock-emblem {
+    width:64px; height:64px; border:2px solid var(--border); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--border); font-size:22px; margin-bottom:28px;
+  }
+  .lock-title { font-family:'Playfair Display',serif; font-size:2rem; color:var(--paper); margin-bottom:6px; }
+  .lock-subtitle { font-size:.72rem; color:var(--muted); letter-spacing:.2em; text-transform:uppercase; margin-bottom:40px; }
+
+  .pw-field-wrap { position:relative; width:300px; }
+  #pw-input {
+    width:100%; background:transparent; border:none; border-bottom:1.5px solid var(--border);
+    color:var(--paper); font-family:'Courier Prime',monospace; font-size:.95rem;
+    padding:10px 0; outline:none; letter-spacing:.12em; text-align:center; transition:border-color .3s;
+  }
+  #pw-input::placeholder { color:var(--muted); }
+  #pw-input:focus { border-color:var(--paper); }
+  .pw-error { margin-top:14px; font-size:.72rem; color:var(--accent); letter-spacing:.15em; text-transform:uppercase; text-align:center; min-height:18px; }
+  .pw-hint { margin-top:32px; font-size:.65rem; color:var(--muted); letter-spacing:.15em; text-transform:uppercase; }
+
+  /* APP */
+  #app {
+    width:100%; min-height:100vh; display:none; flex-direction:column;
+    align-items:center; padding:60px 20px 80px;
+    opacity:0; transition:opacity .6s ease .3s;
+  }
+  #app.visible { opacity:1; }
+
+  .app-header { text-align:center; margin-bottom:48px; }
+  .app-header h1 { font-family:'Playfair Display',serif; font-size:clamp(2.2rem,5vw,3.4rem); color:var(--paper); margin-bottom:8px; }
+  .app-header h1 span { font-style:italic; color:var(--accent); }
+  .app-header p { font-size:.7rem; color:var(--muted); letter-spacing:.22em; text-transform:uppercase; }
+
+  /* BADGE */
+  .badge {
+    display:inline-block; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase;
+    background: rgba(139,46,10,.2); border:1px solid rgba(139,46,10,.5);
+    color:var(--accent); padding:3px 10px; margin-bottom:28px;
+  }
+
+  .card {
+    width:100%; max-width:700px;
+    background:rgba(245,240,232,.04); border:1px solid rgba(201,185,154,.2);
+    padding:32px 36px; margin-bottom:24px;
+  }
+  .card-label { font-size:.65rem; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; display:block; }
+
+  .url-row { display:flex; gap:12px; align-items:stretch; }
+  #url-input {
+    flex:1; background:transparent; border:1px solid rgba(201,185,154,.3);
+    color:var(--paper); font-family:'Courier Prime',monospace; font-size:.88rem;
+    padding:12px 16px; outline:none; transition:border-color .3s;
+  }
+  #url-input::placeholder { color:var(--muted); }
+  #url-input:focus { border-color:var(--border); }
+
+  #fetch-btn {
+    background:var(--accent); border:none; color:var(--paper);
+    font-family:'Courier Prime',monospace; font-size:.78rem; letter-spacing:.18em;
+    text-transform:uppercase; padding:12px 26px; cursor:pointer; transition:background .2s, transform .1s; white-space:nowrap;
+  }
+  #fetch-btn:hover { background:#a33510; }
+  #fetch-btn:active { transform:scale(.97); }
+  #fetch-btn:disabled { background:var(--muted); cursor:not-allowed; }
+
+  /* PROGRESS */
+  #progress-wrap {
+    width:100%; max-width:700px; margin-bottom:20px; display:none;
+  }
+  .prog-header {
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
+  }
+  .prog-label { font-size:.72rem; color:var(--muted); letter-spacing:.1em; }
+  .prog-count { font-size:.72rem; color:var(--paper); }
+  .prog-track {
+    width:100%; height:3px; background:rgba(201,185,154,.15); position:relative; overflow:hidden;
+  }
+  .prog-bar {
+    height:100%; background:var(--accent); width:0%; transition:width .3s ease;
+  }
+  .prog-file {
+    margin-top:8px; font-size:.68rem; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  /* STATUS */
+  #status-bar { font-size:.75rem; letter-spacing:.1em; color:var(--muted); margin-top:14px; min-height:20px; transition:color .3s; }
+  #status-bar.error { color:var(--accent); }
+  #status-bar.success { color:var(--success); }
+
+  /* RESULTS */
+  #results { width:100%; max-width:700px; display:none; }
+
+  .result-section { border:1px solid rgba(201,185,154,.2); margin-bottom:14px; overflow:hidden; }
+  .result-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 18px; background:rgba(245,240,232,.04);
+    border-bottom:1px solid rgba(201,185,154,.12);
+  }
+  .result-header-left { display:flex; align-items:center; gap:10px; }
+  .file-name { font-size:.82rem; color:var(--paper); letter-spacing:.04em; }
+  .file-size { font-size:.66rem; color:var(--muted); letter-spacing:.08em; }
+
+  .dl-btn {
+    background:transparent; border:1px solid rgba(201,185,154,.4); color:var(--paper);
+    font-family:'Courier Prime',monospace; font-size:.68rem; letter-spacing:.14em;
+    text-transform:uppercase; padding:6px 14px; cursor:pointer; transition:all .2s;
+  }
+  .dl-btn:hover { background:rgba(245,240,232,.08); border-color:var(--border); }
+  .dl-btn.primary { background:var(--accent); border-color:var(--accent); }
+  .dl-btn.primary:hover { background:#a33510; }
+
+  .preview-area { max-height:200px; overflow-y:auto; }
+  .preview-area pre {
+    font-family:'Courier Prime',monospace; font-size:.7rem; color:rgba(245,240,232,.5);
+    line-height:1.6; padding:16px 18px; white-space:pre-wrap; word-break:break-all;
+  }
+  .preview-area::-webkit-scrollbar { width:3px; }
+  .preview-area::-webkit-scrollbar-thumb { background:rgba(201,185,154,.3); }
+
+  .asset-list { padding:12px 18px; display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; }
+  .asset-item { display:flex; align-items:center; gap:10px; }
+  .asset-status { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .asset-status.ok { background:var(--success); }
+  .asset-status.fail { background:var(--accent); }
+  .asset-status.pending { background:var(--muted); }
+  .asset-url { font-size:.7rem; color:rgba(245,240,232,.5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .asset-type { font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+  .asset-size { font-size:.6rem; color:rgba(122,110,96,.6); white-space:nowrap; }
+
+  /* STATS */
+  .stats-row {
+    display:flex; gap:24px; padding:16px 18px;
+    border-top:1px solid rgba(201,185,154,.1);
+  }
+  .stat { display:flex; flex-direction:column; gap:4px; }
+  .stat-val { font-size:1.2rem; color:var(--paper); }
+  .stat-key { font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+
+  .spinner {
+    display:inline-block; width:10px; height:10px; border:1.5px solid var(--muted);
+    border-top-color:var(--paper); border-radius:50%; animation:spin .7s linear infinite;
+    margin-right:8px; vertical-align:middle;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .footer { margin-top:60px; font-size:.62rem; color:rgba(122,110,96,.35); letter-spacing:.18em; text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<!-- LOCK -->
+<div id="lock-screen">
+  <div class="lock-emblem">✦</div>
+  <h1 class="lock-title">William Scriber</h1>
+  <p class="lock-subtitle">Private Access</p>
+  <div class="pw-field-wrap">
+    <input type="password" id="pw-input" placeholder="Enter passphrase" autocomplete="off" />
+  </div>
+  <p class="pw-error" id="pw-error"></p>
+  <p class="pw-hint">Press Enter to unlock</p>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="app-header">
+    <h1>William <span>Scriber</span></h1>
+    <p>Full Website Extractor</p>
+  </div>
+
+  <span class="badge">v2 · Full File Download</span>
+
+  <div class="card">
+    <span class="card-label">Target URL</span>
+    <div class="url-row">
+      <input type="text" id="url-input" placeholder="https://example.com" />
+      <button id="fetch-btn" onclick="startExtraction()">Extract</button>
+    </div>
+    <p id="status-bar"></p>
+  </div>
+
+  <div id="progress-wrap">
+    <div class="prog-header">
+      <span class="prog-label">Downloading files…</span>
+      <span class="prog-count" id="prog-count">0 / 0</span>
+    </div>
+    <div class="prog-track"><div class="prog-bar" id="prog-bar"></div></div>
+    <div class="prog-file" id="prog-file">—</div>
+  </div>
+
+  <div id="results"></div>
+
+  <p class="footer">William Scriber · Private Tool</p>
+</div>
+
+<script>
+const PASSWORD = '19374628riyad';
+const PROXY    = 'https://api.allorigins.win/get?url=';
+
+// ── AUTH ──────────────────────────────────────────────────────
+const pwInput    = document.getElementById('pw-input');
+const pwError    = document.getElementById('pw-error');
+const lockScreen = document.getElementById('lock-screen');
+const app        = document.getElementById('app');
+
+pwInput.addEventListener('keydown', e => { if(e.key==='Enter') checkPassword(); });
+pwInput.focus();
+
+function checkPassword() {
+  if(pwInput.value === PASSWORD) {
+    lockScreen.classList.add('fade-out');
+    app.style.display = 'flex';
+    app.style.flexDirection = 'column';
+    app.style.alignItems = 'center';
+    setTimeout(() => {
+      app.classList.add('visible');
+      document.getElementById('url-input').focus();
+    }, 100);
+  } else {
+    pwError.textContent = 'Incorrect passphrase.';
+    pwInput.value = '';
+  }
+}
+
+document.getElementById('url-input').addEventListener('keydown', e => {
+  if(e.key === 'Enter') startExtraction();
+});
+
+// ── HELPERS ───────────────────────────────────────────────────
+function formatBytes(n) {
+  if(n<1024) return n+' B';
+  if(n<1048576) return (n/1024).toFixed(1)+' KB';
+  return (n/1048576).toFixed(1)+' MB';
+}
+function escapeHtml(s='') {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function getExt(url='') {
+  try { const p=new URL(url).pathname; return p.split('.').pop().split('?')[0].toLowerCase()||'file'; } catch{ return 'file'; }
+}
+function safeFilename(url='', i) {
+  try {
+    const p = new URL(url).pathname;
+    const parts = p.split('/').filter(Boolean);
+    return parts.length ? parts[parts.length-1] : `asset_${i}`;
+  } catch { return `asset_${i}`; }
+}
+
+async function proxyFetch(url) {
+  const r = await fetch(PROXY + encodeURIComponent(url));
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+  return d.contents || '';
+}
+
+// ── ASSET EXTRACTION ─────────────────────────────────────────
+function extractAssets(html, baseUrl) {
+  const base = new URL(baseUrl);
+  const resolve = (u='') => {
+    u = u.trim();
+    if(!u || u.startsWith('data:') || u.startsWith('javascript:') || u.startsWith('#')) return null;
+    try {
+      if(u.startsWith('//')) return base.protocol+u;
+      if(u.startsWith('/')) return base.origin+u;
+      if(u.startsWith('http')) return u;
+      return base.origin+'/'+u;
+    } catch { return null; }
+  };
+
+  const seen = new Set();
+  const assets = [];
+  const add = (raw, type) => {
+    const url = resolve(raw);
+    if(url && !seen.has(url)) { seen.add(url); assets.push({url, type}); }
+  };
+
+  const patterns = [
+    [/href=["']([^"']+\.css[^"'?#]*)/gi, 'css'],
+    [/src=["']([^"']+\.js[^"'?#]*)/gi,  'js'],
+    [/src=["']([^"']+\.(png|jpg|jpeg|gif|svg|webp|ico)[^"'?#]*)/gi, 'image'],
+    [/href=["']([^"']+\.(png|jpg|jpeg|gif|svg|webp|ico)[^"'?#]*)/gi,'image'],
+    [/url\(["']?([^"')]+\.(css|js|png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot)[^"')?#]*)/gi, 'asset'],
+    [/src=["']([^"']+\.(?:woff2?|ttf|eot)[^"'?#]*)/gi, 'font'],
+  ];
+
+  for(const [rx, type] of patterns) {
+    let m;
+    while((m=rx.exec(html))!==null) add(m[1], type);
+  }
+  return assets;
+}
+
+// ── REWRITE HTML LINKS ───────────────────────────────────────
+function rewriteLinks(html, assetMap) {
+  let out = html;
+  for(const [origUrl, localName] of Object.entries(assetMap)) {
+    // replace both quoted and url() occurrences
+    out = out.split(origUrl).join(localName);
+  }
+  return out;
+}
+
+// ── PROGRESS ─────────────────────────────────────────────────
+let _total=0, _done=0;
+function initProgress(total) {
+  _total=total; _done=0;
+  document.getElementById('progress-wrap').style.display='block';
+  document.getElementById('prog-count').textContent=`0 / ${total}`;
+  document.getElementById('prog-bar').style.width='0%';
+  document.getElementById('prog-file').textContent='—';
+}
+function tickProgress(filename) {
+  _done++;
+  const pct = Math.round((_done/_total)*100);
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('prog-count').textContent=`${_done} / ${_total}`;
+  document.getElementById('prog-file').textContent=filename;
+}
+
+// ── MAIN ─────────────────────────────────────────────────────
+async function startExtraction() {
+  const rawUrl   = document.getElementById('url-input').value.trim();
+  const statusBar = document.getElementById('status-bar');
+  const results  = document.getElementById('results');
+  const btn      = document.getElementById('fetch-btn');
+
+  if(!rawUrl){ statusBar.textContent='Please enter a URL.'; statusBar.className='error'; return; }
+
+  let url = rawUrl;
+  if(!/^https?:\/\//i.test(url)) url='https://'+url;
+
+  btn.disabled=true;
+  results.style.display='none';
+  results.innerHTML='';
+  document.getElementById('progress-wrap').style.display='none';
+  statusBar.innerHTML='<span class="spinner"></span> Fetching HTML…';
+  statusBar.className='';
+
+  try {
+    // 1. Fetch HTML
+    const html = await proxyFetch(url);
+    if(!html) throw new Error('Empty response — site may block external requests.');
+
+    const domain   = new URL(url).hostname;
+    const assets   = extractAssets(html, url);
+
+    // 2. Download assets
+    initProgress(assets.length);
+    statusBar.innerHTML=`<span class="spinner"></span> Downloading ${assets.length} asset(s)…`;
+
+    const zip        = new JSZip();
+    const assetFolder= zip.folder('assets');
+    const assetMap   = {};          // origUrl → local path
+    const assetResults = [];        // for display
+
+    for(let i=0; i<assets.length; i++) {
+      const {url: aUrl, type} = assets[i];
+      const fname = safeFilename(aUrl, i);
+      tickProgress(fname);
+
+      try {
+        const content = await proxyFetch(aUrl);
+        assetFolder.file(fname, content);
+        assetMap[aUrl] = 'assets/'+fname;
+        assetResults.push({url:aUrl, type, fname, size:content.length, ok:true});
+      } catch(e) {
+        assetResults.push({url:aUrl, type, fname, size:0, ok:false});
+      }
+    }
+
+    // 3. Rewrite + add index.html
+    const rewrittenHtml = rewriteLinks(html, assetMap);
+    zip.file('index.html', rewrittenHtml);
+
+    // 4. Generate ZIP
+    statusBar.innerHTML='<span class="spinner"></span> Packaging ZIP…';
+    const blob     = await zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:6}});
+    const zipSize  = blob.size;
+    window._scriber_zip      = blob;
+    window._scriber_zipName  = domain+'_site.zip';
+    window._scriber_html     = rewrittenHtml;
+    window._scriber_htmlName = 'index.html';
+
+    // 5. Render UI
+    const ok    = assetResults.filter(a=>a.ok).length;
+    const fail  = assetResults.length - ok;
+    const totalDownloaded = assetResults.filter(a=>a.ok).reduce((s,a)=>s+a.size,0) + html.length;
+
+    results.style.display='block';
+    results.innerHTML = buildResults(html, rewrittenHtml, assetResults, ok, fail, totalDownloaded, zipSize);
+
+    document.getElementById('progress-wrap').style.display='none';
+    statusBar.textContent=`✓ Done — ${ok} files fetched, ${fail} failed · ZIP ${formatBytes(zipSize)}`;
+    statusBar.className='success';
+
+  } catch(err) {
+    document.getElementById('progress-wrap').style.display='none';
+    statusBar.textContent='✗ '+err.message;
+    statusBar.className='error';
+  }
+
+  btn.disabled=false;
+}
+
+// ── BUILD RESULTS HTML ────────────────────────────────────────
+function buildResults(rawHtml, rewrittenHtml, assetResults, ok, fail, totalBytes, zipSize) {
+  const rows = assetResults.map(a => `
+    <div class="asset-item">
+      <span class="asset-status ${a.ok?'ok':'fail'}"></span>
+      <span class="asset-url" title="${escapeHtml(a.url)}">${escapeHtml(a.url)}</span>
+      <span class="asset-type">${a.type}</span>
+      <span class="asset-size">${a.ok?formatBytes(a.size):'failed'}</span>
+    </div>`).join('');
+
+  return `
+    <!-- ZIP download -->
+    <div class="result-section">
+      <div class="result-header">
+        <div class="result-header-left">
+          <span>🗜</span>
+          <span class="file-name">${window._scriber_zipName}</span>
+          <span class="file-size">${formatBytes(zipSize)}</span>
+        </div>
+        <button class="dl-btn primary" onclick="downloadZip()">↓ Download ZIP</button>
+      </div>
+      <div class="stats-row">
+        <div class="stat"><span class="stat-val">${ok}</span><span class="stat-key">Files OK</span></div>
+        <div class="stat"><span class="stat-val" style="color:${fail?'var(--accent)':'var(--success)'}">${fail}</span><span class="stat-key">Failed</span></div>
+        <div class="stat"><span class="stat-val">${formatBytes(totalBytes)}</span><span class="stat-key">Total Size</span></div>
+        <div class="stat"><span class="stat-val">${formatBytes(zipSize)}</span><span class="stat-key">ZIP Size</span></div>
+      </div>
+    </div>
+
+    <!-- HTML preview -->
+    <div class="result-section">
+      <div class="result-header">
+        <div class="result-header-left">
+          <span>📄</span>
+          <span class="file-name">index.html <span style="font-size:.65rem;color:var(--success)">· links rewritten</span></span>
+          <span class="file-size">${formatBytes(rewrittenHtml.length)}</span>
+        </div>
+        <button class="dl-btn" onclick="downloadHTML()">↓ HTML only</button>
+      </div>
+      <div class="preview-area"><pre>${escapeHtml(rewrittenHtml.slice(0,3000))}${rewrittenHtml.length>3000?'\n\n… (truncated)':''}</pre></div>
+    </div>
+
+    <!-- Asset list -->
+    ${assetResults.length>0?`
+    <div class="result-section">
+      <div class="result-header">
+        <div class="result-header-left">
+          <span>🗂</span>
+          <span class="file-name">Asset Manifest</span>
+          <span class="file-size">${assetResults.length} file(s)</span>
+        </div>
+        <button class="dl-btn" onclick="downloadManifest()">↓ Manifest (.txt)</button>
+      </div>
+      <div class="asset-list">${rows}</div>
+    </div>`:''}
+  `;
+}
+
+// ── DOWNLOADS ─────────────────────────────────────────────────
+function downloadZip() {
+  if(!window._scriber_zip) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(window._scriber_zip);
+  a.download = window._scriber_zipName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function downloadHTML() {
+  if(!window._scriber_html) return;
+  trigger(window._scriber_html, window._scriber_htmlName, 'text/html');
+}
+function downloadManifest() {
+  const items = document.querySelectorAll('.asset-item');
+  const lines = Array.from(items).map(el => {
+    const url  = el.querySelector('.asset-url')?.title || '';
+    const type = el.querySelector('.asset-type')?.textContent||'';
+    const size = el.querySelector('.asset-size')?.textContent||'';
+    const ok   = el.querySelector('.asset-status.ok')!==null;
+    return `[${ok?'OK  ':'FAIL'}] [${type.padEnd(5)}] ${size.padEnd(10)} ${url}`;
+  }).join('\n');
+  trigger(lines, 'manifest.txt', 'text/plain');
+}
+function trigger(content, filename, mime) {
+  const blob = new Blob([content],{type:mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
